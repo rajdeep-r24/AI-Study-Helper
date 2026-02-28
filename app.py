@@ -15,8 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─── HARDCODED API KEY — replace with your actual key ───────────────────────────
-GEMINI_API_KEY = "AIzaSyBAHElvCxOEWzzcZuayTrVYctyW_kOs2no"  # 🔑 PUT YOUR KEY HERE
+
 
 # ─── GLOBAL CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -674,7 +673,7 @@ section[data-testid="stSidebar"] {
 
 # ─── SESSION STATE ───────────────────────────────────────────────────────────────
 defaults = {
-    "api_key": GEMINI_API_KEY,
+    "api_key": "",
     "active_tab": "home",
     "generated_paper": None,
     "question_bank": [],
@@ -692,6 +691,11 @@ defaults = {
     "university": "",
     "subject": "",
     "topic": "",
+    "course": "",
+    "branch": "",
+    "year": "",
+    "semester": "",
+    "exam_board": "",
     "generation_count": 0,
 }
 for k, v in defaults.items():
@@ -699,9 +703,27 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 # ─── HELPERS ────────────────────────────────────────────────────────────────────
+def student_context() -> str:
+    """Build a rich student profile string to inject into every AI prompt."""
+    s = st.session_state
+    parts = []
+    if s.university:   parts.append(f"University: {s.university}")
+    if s.course:       parts.append(f"Course: {s.course}")
+    if s.branch:       parts.append(f"Branch/Stream: {s.branch}")
+    if s.year:         parts.append(f"Year: {s.year}")
+    if s.semester:     parts.append(f"Semester: {s.semester}")
+    if s.subject:      parts.append(f"Subject: {s.subject}")
+    if s.topic:        parts.append(f"Topic/Chapter: {s.topic}")
+    if s.exam_board:   parts.append(f"Exam board/pattern: {s.exam_board}")
+    if not parts:
+        return ""
+    return "Student profile:\n" + "\n".join(f"  - {p}" for p in parts) + "\n"
+
 def get_model():
+    if not st.session_state.api_key:
+        return None
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
+        genai.configure(api_key=st.session_state.api_key)
         return genai.GenerativeModel("gemini-2.5-flash")
     except Exception:
         return None
@@ -815,13 +837,68 @@ def render_question_card(q: dict, show_answer: bool = True, idx: int = 0):
 with st.sidebar:
     st.markdown('<div class="sidebar-logo">⚡ ExamForge AI</div>', unsafe_allow_html=True)
 
+    st.markdown('<div class="sidebar-section">🔑 API Key</div>', unsafe_allow_html=True)
+    api_key_input = st.text_input("Gemini API Key", value=st.session_state.api_key,
+        type="password", placeholder="AIza...")
+    if api_key_input:
+        st.session_state.api_key = api_key_input
+        st.success("✓ Key saved")
+    else:
+        st.caption("Get free key → [aistudio.google.com](https://aistudio.google.com/app/apikey)")
     st.markdown('<div class="sidebar-section">🎓 Your Profile</div>', unsafe_allow_html=True)
     st.session_state.university = st.text_input("University / Institute",
         value=st.session_state.university, placeholder="e.g. Mumbai University")
+
+    st.session_state.course = st.selectbox("Course / Degree",
+        ["", "B.E. / B.Tech", "B.Sc", "B.Com", "B.A", "BBA", "BCA",
+         "M.E. / M.Tech", "M.Sc", "MBA", "MCA", "Diploma", "Other"],
+        index=(["", "B.E. / B.Tech", "B.Sc", "B.Com", "B.A", "BBA", "BCA",
+                "M.E. / M.Tech", "M.Sc", "MBA", "MCA", "Diploma", "Other"]
+               .index(st.session_state.course)
+               if st.session_state.course in ["", "B.E. / B.Tech", "B.Sc",
+               "B.Com", "B.A", "BBA", "BCA", "M.E. / M.Tech", "M.Sc",
+               "MBA", "MCA", "Diploma", "Other"] else 0))
+
+    st.session_state.branch = st.text_input("Branch / Stream",
+        value=st.session_state.branch,
+        placeholder="e.g. Computer Engg / Pharmacy / Commerce")
+
+    col_y, col_s = st.columns(2)
+    with col_y:
+        st.session_state.year = st.selectbox("Year",
+            ["", "1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"],
+            index=(["", "1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"]
+                   .index(st.session_state.year)
+                   if st.session_state.year in ["", "1st Year", "2nd Year",
+                   "3rd Year", "4th Year", "5th Year"] else 0))
+    with col_s:
+        st.session_state.semester = st.selectbox("Semester",
+            ["", "Sem 1", "Sem 2", "Sem 3", "Sem 4",
+             "Sem 5", "Sem 6", "Sem 7", "Sem 8"],
+            index=(["", "Sem 1", "Sem 2", "Sem 3", "Sem 4",
+                    "Sem 5", "Sem 6", "Sem 7", "Sem 8"]
+                   .index(st.session_state.semester)
+                   if st.session_state.semester in ["", "Sem 1", "Sem 2",
+                   "Sem 3", "Sem 4", "Sem 5", "Sem 6", "Sem 7", "Sem 8"] else 0))
+
     st.session_state.subject = st.text_input("Subject",
-        value=st.session_state.subject, placeholder="e.g. Data Structures")
+        value=st.session_state.subject, placeholder="e.g. Applied Mathematics")
     st.session_state.topic = st.text_input("Chapter / Topic",
-        value=st.session_state.topic, placeholder="e.g. Binary Trees")
+        value=st.session_state.topic, placeholder="e.g. Differential Equations")
+    st.session_state.exam_board = st.text_input("Exam Board / Pattern (optional)",
+        value=st.session_state.exam_board,
+        placeholder="e.g. GTU / SPPU / Anna Univ")
+
+    profile_parts = [p for p in [st.session_state.course, st.session_state.branch,
+        st.session_state.year, st.session_state.semester] if p]
+    if profile_parts:
+        st.markdown(
+            '<div style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);'
+            'border-radius:10px;padding:8px 12px;margin-top:6px;font-family:monospace;'
+            'font-size:0.68rem;color:#a5b4fc;line-height:1.6;">'
+            + "👤 " + " · ".join(profile_parts) + "</div>",
+            unsafe_allow_html=True
+        )
 
     st.markdown('<div class="sidebar-section">📊 Session Stats</div>', unsafe_allow_html=True)
     st.metric("Papers Generated", st.session_state.generation_count)
@@ -984,16 +1061,16 @@ elif tab == "upload":
         with col1:
             if st.button("🔥 Extract Imp Topics", use_container_width=True):
                 with st.spinner("AI is analysing your notes..."):
-                    uni = st.session_state.university or "general"
-                    subj = st.session_state.subject or "this subject"
                     prompt = f"""
-You are an expert exam coach for {uni} university studying {subj}.
-From these notes, identify the TOP 15 most important topics that are MOST LIKELY to appear in exams.
+You are an expert exam coach. Use the student profile below to give highly specific, targeted advice.
+{student_context()}
+From these notes, identify the TOP 15 most important topics MOST LIKELY to appear in their exam.
+Tailor topics specifically for their course, branch and semester level — for example Maths for B.E. Computer Sem 1 is different from B.Pharm Sem 1.
 For each topic give:
 - Topic name
-- Why it's important (1 line)
+- Why it's important for their specific course/sem (1 line)
 - Estimated weightage (High/Medium/Low)
-- 2-3 likely question types
+- 2-3 likely question types for their exam pattern
 
 Notes:
 {combined[:8000]}
@@ -1008,9 +1085,9 @@ Format each topic clearly numbered.
         with col2:
             if st.button("🃏 Generate Flashcards", use_container_width=True):
                 with st.spinner("Creating flashcards..."):
-                    subj = st.session_state.subject or "the subject"
                     prompt = f"""
-From these notes on {subj}, create 15 flashcards for key concepts, definitions, and formulas.
+{student_context()}
+From these notes, create 15 flashcards tailored for this student's course and semester level.
 Format strictly as JSON array:
 [
   {{"front": "Term or question", "back": "Definition or answer", "category": "topic name"}},
@@ -1033,9 +1110,9 @@ Notes:
         with col3:
             if st.button("🗂️ Auto-fill Question Bank", use_container_width=True):
                 with st.spinner("Generating questions from your notes..."):
-                    subj = st.session_state.subject or "this subject"
                     prompt = f"""
-Generate 20 exam questions from these {subj} notes. Mix of difficulty levels and types.
+{student_context()}
+Generate 20 exam questions from these notes, calibrated for this student's course, branch and semester.
 For each question use this format:
 Q1. [Question text]
 Answer: [Answer]
@@ -1107,8 +1184,9 @@ elif tab == "exam_gen":
             notes_context = f"\nBase the questions strictly on these notes:\n{st.session_state.notes_text[:5000]}"
 
         prompt = f"""
-You are an expert exam paper setter for {university} university.
-Create a complete, professional exam paper for:
+You are an expert exam paper setter. Use the student profile to calibrate the paper precisely.
+{student_context()}
+Create a complete, professional exam paper:
 - Subject: {subject}
 - Topics: {topic}
 - Total Marks: {total_marks}
@@ -1116,7 +1194,10 @@ Create a complete, professional exam paper for:
 - Duration: {duration} minutes
 - Difficulty: {difficulty}
 - Question Types: {', '.join(q_types)}
-- Bloom's Levels to cover: {', '.join(bloom_levels)}
+- Bloom's Levels: {', '.join(bloom_levels)}
+
+IMPORTANT: Tailor question complexity and content to the student's course, branch and semester.
+For example, Maths for B.E. Computer Sem 1 differs from B.Pharm Sem 1 — use appropriate scope.
 
 {notes_context}
 
@@ -1222,8 +1303,9 @@ elif tab == "question_bank":
                 topic = st.session_state.topic or "Mixed Topics"
                 notes_ctx = f"\nFrom these notes:\n{st.session_state.notes_text[:4000]}" if st.session_state.notes_text else ""
                 prompt = f"""
-Generate 15 expected exam questions for {subj} on {topic} for {st.session_state.university or 'university'} students.
-Focus on questions that are MOST LIKELY to appear based on standard exam patterns.{notes_ctx}
+{student_context()}
+Generate 15 expected exam questions tailored for this student's course, branch and semester.
+Focus on questions MOST LIKELY to appear for their specific program — not generic questions.{notes_ctx}
 
 Q[N]. [Question]
 Answer: [Answer]
@@ -1291,11 +1373,12 @@ Type: [mcq/short/long]
             uni = st.session_state.university or "University"
             notes_ctx = f"\nBased on:\n{st.session_state.notes_text[:4000]}" if st.session_state.notes_text else ""
             prompt = f"""
-Create a COMPLETE sample question paper for {subj} at {uni}.
-This should look like an ACTUAL university exam paper.{notes_ctx}
+{student_context()}
+Create a COMPLETE sample question paper that looks like an ACTUAL university exam paper.
+Calibrate question depth and terminology to the student's course and semester level.{notes_ctx}
 
 Include:
-- Paper header with university name, subject, marks, duration, instructions
+- Paper header with university name, course, branch, subject, marks, duration, instructions
 - Section A: MCQ (20 marks)
 - Section B: Short answer (30 marks)
 - Section C: Long answer (50 marks)
@@ -1367,7 +1450,8 @@ elif tab == "flashcards":
             subj = st.session_state.subject or custom_topic or "General"
             notes_ctx = f"\nFrom these notes:\n{st.session_state.notes_text[:4000]}" if st.session_state.notes_text else ""
             prompt = f"""
-Create {num_cards} flashcards for {subj} revision.{notes_ctx}
+{student_context()}
+Create {num_cards} flashcards for revision, pitched at the right level for this student's course and semester.{notes_ctx}
 Return ONLY a JSON array:
 [
   {{"front": "Question or term", "back": "Answer or definition", "category": "subtopic"}},
@@ -1485,11 +1569,12 @@ elif tab == "timer":
                 pool = st.session_state.question_bank.copy()
                 random.shuffle(pool)
                 qs = pool[:num_qs]
-            elif GEMINI_API_KEY:
+            elif st.session_state.api_key:
                 subj = st.session_state.subject or "General Knowledge"
                 notes_ctx = f"\nFrom:\n{st.session_state.notes_text[:3000]}" if st.session_state.notes_text else ""
                 prompt = f"""
-Generate {num_qs} {quiz_diff} difficulty MCQ/short questions for {subj}.{notes_ctx}
+{student_context()}
+Generate {num_qs} {quiz_diff} difficulty MCQ/short questions calibrated for this student's course, branch and semester.{notes_ctx}
 Each question MUST have exactly 4 options (A, B, C, D) if MCQ.
 Format:
 Q[N]. [Question]
@@ -1662,22 +1747,23 @@ elif tab == "pyq":
         notes_ctx = f"\nStudent notes:\n{st.session_state.notes_text[:3000]}" if st.session_state.notes_text else ""
         pyq_ctx = f"\nActual PYQ papers:\n{pyq_context[:4000]}" if pyq_context else ""
         prompt = f"""
-You are an expert in {uni} exam patterns.
+You are an expert in university exam patterns.
+{student_context()}
 Analyse {years} years of PYQ for {subj} ({exam_type}) and provide:
 
-1. **MOST REPEATED TOPICS** (with frequency count) — ranked by how often they appear
+1. **MOST REPEATED TOPICS** — ranked by frequency, specific to this course & branch
 2. **QUESTION TYPE DISTRIBUTION** — % MCQ, short, long, numerical
-3. **DIFFICULTY TREND** — is it getting harder/easier over years?
-4. **HIGH-PROBABILITY QUESTIONS FOR NEXT EXAM** — 10 specific questions most likely to appear
-5. **NEVER-ASKED TOPICS** — topics in syllabus that rarely appear
+3. **DIFFICULTY TREND** — is it getting harder/easier over the years?
+4. **HIGH-PROBABILITY QUESTIONS FOR NEXT EXAM** — 10 specific questions likely to appear for this course/sem
+5. **NEVER-ASKED TOPICS** — in syllabus but rarely appear
 6. **MARKING SCHEME INSIGHTS** — how marks are typically distributed
 7. **LAST YEAR IMPORTANT QUESTIONS** — recreated from memory
-8. **STUDY STRATEGY** — based on pattern analysis, what to focus on
+8. **STUDY STRATEGY** — tailored to this student's course, branch and semester
 
 {notes_ctx}
 {pyq_ctx}
 
-Be specific to {uni} exam patterns. Give actionable, data-driven insights.
+Be specific. Remember: {st.session_state.course or 'a student'} in {st.session_state.branch or 'their branch'} has a different syllabus scope than other programs.
 """
         with st.spinner(f"🔍 Analysing {years} years of {uni} PYQ patterns..."):
             result = call_gemini(prompt, max_tokens=5000)
@@ -1717,18 +1803,21 @@ elif tab == "imp_topics":
         if st.button("🔥 Identify Important Topics", use_container_width=True):
             notes_ctx = f"\nBased on these notes:\n{st.session_state.notes_text[:5000]}" if st.session_state.notes_text else ""
             prompt = f"""
-Act as an expert exam coach for {uni_input or 'university'} students studying {subj_input or 'this subject'}.{notes_ctx}
+Act as an expert exam coach.
+{student_context()}
 
-Identify and rank the TOP 20 most important topics for exam preparation.
+Identify and rank the TOP 20 most important topics for this student's exam.
+CRITICAL: Tailor topics to their specific course, branch and semester — not a generic list.
+For example, Applied Maths for B.E. Sem 1 is very different from B.Pharm Sem 1.{notes_ctx}
 
 For each topic provide:
-1. Topic name & subtopics
+1. Topic name & subtopics (relevant to their course/branch)
 2. Importance level: 🔴 MUST KNOW / 🟡 IMPORTANT / 🟢 GOOD TO KNOW
-3. Expected marks weightage
+3. Expected marks weightage for their exam pattern
 4. Most likely question format
 5. Key formulas/concepts to memorise
 6. Difficulty level
-7. Quick study tip
+7. Quick study tip specific to their level
 
 Also provide:
 - 5 topics to absolutely NOT skip
@@ -1875,7 +1964,8 @@ elif tab == "analytics":
 
         if st.button("🤖 Get AI Insights on Your Prep", use_container_width=True):
             prompt = f"""
-Based on this student's question bank analytics:
+{student_context()}
+Question bank analytics for this student:
 - Total questions: {total}
 - Easy: {easy} ({int(easy/total*100) if total else 0}%)
 - Medium: {medium} ({int(medium/total*100) if total else 0}%)
@@ -1883,12 +1973,11 @@ Based on this student's question bank analytics:
 - Bloom's coverage: {bloom_counts}
 - Question types: {type_counts}
 - Flashcards created: {len(st.session_state.flashcards)}
-- Subject: {st.session_state.subject}
 
-Provide:
+Provide insights tailored to their course and semester level:
 1. Assessment of their preparation level
 2. What areas they're strong in
-3. What gaps exist in their preparation
+3. Gaps in their preparation (specific to their course/branch syllabus)
 4. Specific recommendations to improve
 5. Suggested study plan for the next 7 days
 6. Confidence score (0-100) for their exam readiness
