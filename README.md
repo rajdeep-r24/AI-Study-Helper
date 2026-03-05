@@ -21,7 +21,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-### 4. Enter API key in the code
+### 4. Enter API key in the side bar
 
 ---
 
@@ -42,7 +42,7 @@ streamlit run app.py
 
 ## 💡 How to Use
 
-1. **Enter your Gemini API key** in the code
+1. **Enter your Gemini API key** in the side bar
 2. **Fill in your university, subject, and topic** in the sidebar
 3. **Upload your notes** (PDF/DOCX/TXT) in the Upload tab
 4. Click:
